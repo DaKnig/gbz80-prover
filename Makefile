@@ -20,3 +20,15 @@ LLC := llc
 
 %.asm: %.ll Makefile
 	$(LLC) $< --x86-asm-syntax=intel -o $@
+
+%.o: %.ll Makefile
+	llc -filetype=obj $< -o $@
+
+%: %.o
+	$(CLANG) $< -o $@
+
+%.o: %.c Makefile
+	$(CLANG) $(CFLAGS) $< -c -o $@
+
+main: main.o proof.o
+	$(CLANG) $^ -o $@

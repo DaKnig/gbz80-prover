@@ -1,3 +1,4 @@
+#include "code.h"
 #include "cpu.c"
 #include <string.h>
 #define inline __attribute__((always_inline))
@@ -11,28 +12,54 @@ inline char gb(char a, char b) {
 	return cpu.regs.a;
 }
 
-/* char double_DAAbble */
-char pino(char a, char b, char c) {
-	struct SM83 cpu;
-	/* clean_cpu(&cpu); */
+extern struct SM83 global_cpu;
 
-	cpu.regs.a = a;
-	cpu.regs.b = b;
-	cpu.regs.c = c;
-	cpu.regs.pc = 100;
+static inline void call_from(struct SM83 *cpu, uint16_t call, uint16_t from) {
+  cpu->regs.pc = from - 3;
 
-	const char code [] = {
-		0xcb, 0x37, 0x47, 0xe6,
-		0x0f, 0xb7, 0x27, 0xcb,
-		0x20, 0x8f, 0x27, 0xcb,
-		0x20, 0x8f, 0x27, 0xcb, 0x10, 0x8f, 0x27, 0xcb, 0x10, 0x8f, 0x27, 0xcb, 0x10, 0xc9
-		/* 0xc9 */};
-	__builtin_memcpy_inline(&cpu.mem[cpu.regs.pc], code, sizeof(code));
+  const char call_imm16 = 0xcd;
 
-	#pragma clang loop unroll(full)
-	for(int i=0; i<18; i++)
-		run_single_command(&cpu);
-	return cpu.regs.a;
+  // inject ret into the cpu,
+  __builtin_memcpy_inline(&cpu->mem[cpu->regs.pc],
+                          (const char[]){call_imm16, (char)call, call >> 8}, 3);
+  // then run it
+  run_single_command(cpu);
+}
+
+// runs the machine code in `code.h:code` as a function,
+// on the arguments of this function
+char pino(char a, char b) {
+  // this is done to make sure the function is compiled correctly,
+  // context free manner, "for whatever the state of the cpu would be"
+  struct SM83 cpu = global_cpu;
+
+  cpu.regs.a = a;
+  cpu.regs.b = b;
+
+  // this is because we must somehow assume the memcpy of code wont cause
+  // UB. [1]
+  const uint16_t code_location = 100;
+  cpu.regs.pc = code_location;
+
+  // fix the stack at 0xfefe.
+  // otherwise any access to sp might change the code (including `ret`
+  // and `call` and we use `call` instruction  to call into the Game Boy
+  // code). [1]
+  const uint16_t stack_location = 0xfefe;
+  cpu.regs.sp = stack_location;
+
+  __builtin_memcpy_inline(&cpu.mem[cpu.regs.pc], code, sizeof(code));
+
+  const uint16_t ret_addr = 0xfeb0; // call it from there
+  call_from(&cpu, code_location, ret_addr);
+
+#pragma clang loop unroll(full)
+  for (int i = 0; i < 22; i++)
+    if (ret_addr != cpu.regs.pc)
+      // run a single instruction in the cpu, mutating cpu in place.
+      run_single_command(&cpu);
+
+  return cpu.regs.a;
 }
 
 inline char source(char a, char) {
