@@ -113,41 +113,41 @@ static __attribute__((always_inline)) bool run_single_command(struct SM83* cpu) 
     // https://github.com/pinobatch/numism/blob/main/docs/gb_emu_testing.md
     case 0x27: {// DAA
 	{
-	    int16_t result = cpu->regs.af >> 8;
+	    int16_t result = cpu->regs.a;
 	    enum {GB_ZERO_FLAG=0x80, GB_SUBTRACT_FLAG=0x40,
 		GB_HALF_CARRY_FLAG=0x20, GB_CARRY_FLAG=0x10};
 
-	    cpu->regs.af &= ~(0xFF00 | GB_ZERO_FLAG);
+	    cpu->regs.f &= ~(GB_ZERO_FLAG);
 
-	    if (cpu->regs.af & GB_SUBTRACT_FLAG) {
-		if (cpu->regs.af & GB_HALF_CARRY_FLAG) {
+	    if (cpu->regs.f & GB_SUBTRACT_FLAG) {
+		if (cpu->regs.f & GB_HALF_CARRY_FLAG) {
 		    result = (result - 0x06) & 0xFF;
 		}
 
-		if (cpu->regs.af & GB_CARRY_FLAG) {
+		if (cpu->regs.f & GB_CARRY_FLAG) {
 		    result -= 0x60;
 		}
 	    }
 	    else {
-		if ((cpu->regs.af & GB_HALF_CARRY_FLAG) || (result & 0x0F) > 0x09) {
+		if ((cpu->regs.f & GB_HALF_CARRY_FLAG) || (result & 0x0F) > 0x09) {
 		    result += 0x06;
 		}
 
-		if ((cpu->regs.af & GB_CARRY_FLAG) || result > 0x9F) {
+		if ((cpu->regs.f & GB_CARRY_FLAG) || result > 0x9F) {
 		    result += 0x60;
 		}
 	    }
 
 	    if ((result & 0xFF) == 0) {
-		cpu->regs.af |= GB_ZERO_FLAG;
+		cpu->regs.f |= GB_ZERO_FLAG;
 	    }
 
 	    if ((result & 0x100) == 0x100) {
-		cpu->regs.af |= GB_CARRY_FLAG;
+		cpu->regs.f |= GB_CARRY_FLAG;
 	    }
 
-	    cpu->regs.af &= ~GB_HALF_CARRY_FLAG;
-	    cpu->regs.af |= result << 8;
+	    cpu->regs.f &= ~GB_HALF_CARRY_FLAG;
+	    cpu->regs.a = result;
 	}
 
 	// cpu->regs.f |= (nf == 0 && cpu->regs.a >= 0x9a) << 4;
@@ -418,8 +418,8 @@ static __attribute__((always_inline)) bool run_single_command(struct SM83* cpu) 
     POP(0xd1, de);
     POP(0xe1, hl);
     case 0xf1:
-	cpu->regs.af = cpu->mem[cpu->regs.sp++] & 0xf0;
-	cpu->regs.af|= cpu->mem[cpu->regs.sp++]<<8;
+	cpu->regs.f = cpu->mem[cpu->regs.sp++] & 0xf0;
+	cpu->regs.a = cpu->mem[cpu->regs.sp++];
 	cpu->regs.pc++;
 	return 0;
 #define COND_JP(OPCODE, COND)				\

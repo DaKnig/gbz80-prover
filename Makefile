@@ -3,8 +3,8 @@ LLFLAGS:= -O1  -mno-outline -fno-slp-vectorize
 MIN_PASSES_PEPT=gvn,simplifycfg
 MIN_PASSES_2=$(MIN_PASSES_PEPT),$(MIN_PASSES_PEPT)
 MIN_PASSES_4=$(MIN_PASSES_2),$(MIN_PASSES_2)
-MINIMAL_PASSES= -passes='$(MIN_PASSES_4),gvn,simplifycfg,gvn,simplifycfg'
-CFLAGS := -std=gnu23 $(LLFLAGS)
+MINIMAL_PASSES= -passes='$(MIN_PASSES_4),$(MIN_PASSES_4),gvn,simplifycfg,gvn,simplifycfg'
+CFLAGS := -std=gnu23 $(LLFLAGS) -g
 OPT := opt
 LLC := llc
 
@@ -19,4 +19,16 @@ LLC := llc
 	$(CLANG) -O3 -S -emit-llvm -o $@ 4$@
 
 %.asm: %.ll Makefile
-	$(LLC) $< --x86-asm-syntax=intel -o $@
+	$(LLC) $< -o $@
+
+%.o: %.ll Makefile
+	llc -filetype=obj $< -o $@
+
+%: %.o
+	$(CLANG) $< -o $@
+
+%.o: %.c Makefile
+	$(CLANG) $(CFLAGS) $< -c -o $@
+
+main: main.o proof.o
+	$(CLANG) $^ -o $@
